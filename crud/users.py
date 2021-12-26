@@ -1,9 +1,9 @@
 import sqlite3
 from werkzeug.exceptions import HTTPException
 from pydantic import BaseModel
-from schemas.user import UserDataModel
+from schemas.user import UserDataModel,BaseUserModel,UserFollowModel,RegistrationModel,UserModel
 from typing import Dict as dict
-from schemas.user import BaseUserModel,UserFollowModel,RegistrationModel,UserModel
+from werkzeug.datastructures import Authorization
 import uuid
 from core import passwords
 from core.errors.auth_errors import AuthError
@@ -26,7 +26,7 @@ class RegistrationError(HTTPException):
 class UserCRUD:
     data: UserStorageModel
 
-    def get_user_data(self, conn: sqlite3.Connection, login: str) -> UserModel:
+    def get(self, conn: sqlite3.Connection, login: str) -> UserModel:
         cur = conn.cursor()
 
         try:
@@ -57,33 +57,41 @@ class UserCRUD:
         cur = conn.cursor()
 
         try:
-            user = self.get(conn, data.login)
+            user = self.get(conn, data.username)
             if user is not None:
-                raise UserExistsError(f"User with login {data.login} already exists")
+                raise UserExistsError(f"User with login {data.username} already exists")
 
             user_id = uuid.uuid4()
             cur.execute(
-                "INSERT INTO User VALUES(?, ?, ?)",
-                (str(user_id), data.login, passwords.hash_password(data.password)),
+                "INSERT INTO User VALUES(?, ?, ?,?,?)",
+                (str(user_id), data.username, passwords.hash_password(data.password),0,0),
             )
         finally:
             cur.close()
 
+    def authenticate(
+            self, conn: sqlite3.Connection, auth_data: Authorization
+    ) -> UserModel:
+        cur = conn.cursor()
+        try:
+            cur.execute(
+                "SELECT password FROM User WHERE login=?", (auth_data.username,)
+            )
+            row = cur.fetchone()
 
-    def authenticate(self, username: str, password: str,) -> UserDataModel:
-        """
-        Authenticate a user based on his username or password.
-        In case of an error, raises AuthError.
-        """
+            if row is None:
+                raise AuthError("User does not exist")
 
-        user_data = self.get_user_data(username)
-        if user_data is None:
-            raise AuthError(f"User with name {username} does not exist")
+            password_hashed = row[0]
 
-        if not passwords.passwords_equal(password, user_data.password):
-            raise AuthError(f"Password for user {username} is not correct")
+            if not passwords.passwords_equal(auth_data.password, password_hashed):
+                raise AuthError("Password is incorrect")
 
-        return user_data
+            assert auth_data.username is not None
+
+            return self.get(conn, auth_data.username)
+        finally:
+            cur.close()
 
     def get_followers_and_follows(
             self, conn: sqlite3.Connection, user:BaseUserModel
@@ -92,7 +100,7 @@ class UserCRUD:
 
         try:
             cur.execute(
-                "SELECT follows"
+                "SELECT follows "
                 "FROM Follow "
                 "WHERE follower=? "
                 "",
@@ -100,8 +108,8 @@ class UserCRUD:
             )
             data_of_follows = cur.fetchall()
 
-            cur.execute("SELECT follower"
-                        "FROM Follow"
+            cur.execute("SELECT follower "
+                        "FROM Follow "
                         "WHERE follows=? ",(user.id,),)
             data_of_followers=cur.fetchall()
 

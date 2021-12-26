@@ -13,7 +13,7 @@ def register():
     registration_data = deps.get_input(RegistrationModel)
 
     with get_connection() as conn:
-        user_crud.create(conn, registration_data)
+        user_crud.create(conn=conn, data=registration_data)
 
     return jsonify({"info": "OK"}), 201
 
@@ -24,10 +24,6 @@ def get_user_data():
     return redirect(f"/api/user/{current_user.login}")
 
 
-@user_blueprint.route("/posts")
-def get_user_posts():
-    current_user = deps.get_current_user()
-    return redirect(f"/api/user/{current_user.login}/posts")
 
 
 @user_blueprint.route("<string:login>")
@@ -79,8 +75,10 @@ def unfollow(login: str):
 
     return jsonify({"info": "OK"})
 
-@user_blueprint.route("/follow")
-def get_followers_and_follows():
-    current_user=deps.get_current_user()
+@user_blueprint.route("/<string:login>/follow")
+def get_followers_and_follows(login:str):
+    selected_user=deps.get_user_by_login(login)
     with get_connection() as conn:
-        user_crud.get_followers_and_follows(current_user)
+        data=user_crud.get_followers_and_follows(conn,selected_user)
+
+    return jsonify({"followers":data.followers,"follows":data.follows})

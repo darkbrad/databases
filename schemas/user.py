@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, validator
 from typing import List
 
 
@@ -11,15 +11,20 @@ class UserDataModel(BaseModel):
 
 
 class UserDataResponseModel(BaseModel):
-    id: int
+    id: str
     login: str
     folowers: int
     folowing: int
 
 
 class RegistrationModel(BaseModel):
-    username: str
-    password: str
+    username: str = Field(min_length=6)
+    password: str = Field(min_length=8)
+
+    @validator("username")
+    def validate_login(cls, username: str) -> str:
+        assert " " not in username, "No spaces allowed in login"
+        return username
 
 class BaseUserModel(BaseModel):
     id: str

@@ -14,7 +14,7 @@ class PostsCRUD:
         try:
             cur.execute(
                 "INSERT INTO Posts(id, creator, description, created) "
-                "VALUES(?, ?, ?, ?, ?)",
+                "VALUES(?, ?, ?, ?)",
                 (
                     data.id,
                     data.creator_id,
